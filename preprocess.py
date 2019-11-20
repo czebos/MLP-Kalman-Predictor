@@ -6,6 +6,10 @@ import tensorflow as tf
 
 TEST_FRACTION = .1
 
+def get_data(file_name):
+    srates, mark_pos,segrot = mat_to_dict(file_name)
+    return seperate_data(srates, mark_pos,segrot)
+
 def mat_to_dict(file_name):
     # srates <-> neurons
     # srates is the variable that keeps track of bucketed fire rates of shape(86517, 260)
@@ -56,9 +60,3 @@ def seperate_data(srates,mark_pos, segrot):
     test_labels = mark_pos[int(-len(mark_pos)*TEST_FRACTION):]
 
     return train_data, train_labels, test_data, test_labels
-
-
-srates, marker_pos, segrot = mat_to_dict('./../COS071212_mocap_processed.mat')
-training_data, training_labels, test_data, test_labels = seperate_data(srates, marker_pos, segrot)
-print(training_data)
-print(training_labels)
