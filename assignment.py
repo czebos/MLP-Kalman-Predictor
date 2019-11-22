@@ -4,6 +4,7 @@ import numpy as np
 from preprocess import *
 import sys
 import math
+from model import GoogleNet
 
 EPOCH_SIZE = 10
 
@@ -21,15 +22,19 @@ def train(model, train_inputs, train_labels):
 	shuffled = tf.random.shuffle(indices)
 	inputs = tf.gather(train_inputs, shuffled)
 	labels = tf.gather(train_labels, shuffled)
+	loss_batch = 0
 
-	for j in range(int((len(inputs_french) / model.batch_size))):
+	for j in range(int((len(train_inputs) / model.batch_size))):
 		sub_inputs = np.array(inputs[j*model.batch_size: (j+1)*model.batch_size])
 		sub_labels = np.array(labels[j*model.batch_size: (j+1)*model.batch_size])
 
 		with tf.GradientTape() as tape:
 			predictions = model(sub_inputs)
 			loss = model.loss(predictions, sub_labels)
-		print(loss)
+		loss_batch += loss
+		if j%10000:
+			print(loss_batch / 10000)
+			loss_batch = 0
 		gradients  = tape.gradient(loss, model.trainable_variables)
 		optmizer.apply_gradients(zip(gradients, model.trainable_variables))
 	return None
@@ -47,13 +52,13 @@ def test(model, test_inputs, test_labels):
 	accuracy = 0
 	total_pred = 0
 
-	for j in range(math.ceil(int((len(inputs_french) / model.batch_size)))):
+	for j in range(math.ceil(int((len(test_inputs) / model.batch_size)))):
 		sub_inputs = np.array(test_inputs[j*model.batch_size: (j+1)*model.batch_size])
 		sub_labels = np.array(test_labels[j*model.batch_size: (j+1)*model.batch_size])
 
 		predictions = model(sub_inputs)
 		total_pred += 1
-		loss = model.loss_function(predictions, sub_labels, mask)
+		loss = model.loss(predictions, sub_labels)
 		accuracy += loss
 
 	return (accuracy/total_pred)
@@ -61,7 +66,8 @@ def test(model, test_inputs, test_labels):
 def main():
 
 	train_inputs, train_labels, test_inputs, test_labels = get_data('./../COS071212_mocap_processed.mat')
-
+	model = GoogleNet()
+	
 	for i in range(EPOCH_SIZE):
 		train(model, train_inputs, train_labels)
 	print(test(model, test_inputs, test_labels))
