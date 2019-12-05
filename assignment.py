@@ -4,9 +4,10 @@ import numpy as np
 from preprocess import *
 import sys
 import math
-from model import GoogleNet
+from model import *
 
 EPOCH_SIZE = 10
+BATCH_SIZE = 128
 
 def train(model, train_inputs, train_labels):
 	"""
@@ -24,13 +25,14 @@ def train(model, train_inputs, train_labels):
 	labels = tf.gather(train_labels, shuffled)
 	loss_batch = 0
 
-	for j in range(int((len(train_inputs) / model.batch_size))):
-		sub_inputs = np.array(inputs[j*model.batch_size: (j+1)*model.batch_size])
-		sub_labels = np.array(labels[j*model.batch_size: (j+1)*model.batch_size])
+	for j in range(int((len(train_inputs) /  BATCH_SIZE))):
+		sub_inputs = np.array(inputs[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
+		sub_labels = np.array(labels[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
+		print(sub_inputs.shape)
 
 		with tf.GradientTape() as tape:
 			predictions = model(sub_inputs)
-			loss = model.loss(predictions, sub_labels)
+			loss = loss_f(predictions, sub_labels)
 		loss_batch += loss
 		if j%10000:
 			print(loss_batch / 10000)
@@ -38,6 +40,9 @@ def train(model, train_inputs, train_labels):
 		gradients  = tape.gradient(loss, model.trainable_variables)
 		optmizer.apply_gradients(zip(gradients, model.trainable_variables))
 	return None
+
+def loss_f(predictions, labels):
+	return tf.reduce_sum(tf.keras.losses.mean_squared_error(predictions,labels))
 
 def test(model, test_inputs, test_labels):
 	"""
@@ -66,8 +71,8 @@ def test(model, test_inputs, test_labels):
 def main():
 
 	train_inputs, train_labels, test_inputs, test_labels = get_data('./../COS071212_mocap_processed.mat')
-	model = GoogleNet()
-	
+	model = create_basicconv()
+
 	for i in range(EPOCH_SIZE):
 		train(model, train_inputs, train_labels)
 	print(test(model, test_inputs, test_labels))
