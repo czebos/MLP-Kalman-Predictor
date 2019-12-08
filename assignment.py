@@ -9,7 +9,7 @@ from model import *
 EPOCH_SIZE = 10
 BATCH_SIZE = 128
 
-def train(model, train_inputs, train_labels):
+def train(model, train_inputs, train_labels, is_kalman):
 	"""
 	Runs through one epoch - all training examples.
 
@@ -27,16 +27,22 @@ def train(model, train_inputs, train_labels):
 
 	for j in range(int((len(train_inputs) /  BATCH_SIZE))):
 		sub_inputs = np.array(inputs[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
-		sub_labels = np.array(labels[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
-		print(sub_inputs.shape)
+		if is_kalman:
+			sub_inputs = np.array(inputs[j*BATCH_SIZE + 1: (j+1)*BATCH_SIZE + 1])
+			states = np.array(labels[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
+		sub_labels = np.array(labels[j*BATCH_SIZE + 1: (j+1)*BATCH_SIZE + 1])
 
 		with tf.GradientTape() as tape:
-			predictions = model(sub_inputs)
-			loss = loss_f(predictions, sub_labels)
-		loss_batch += loss
-		if j%10000:
-			print(loss_batch / 10000)
-			loss_batch = 0
+			if is_kalman:
+				predictions = model(sub_inputs, states)
+				loss = model.loss(predictions, sub_labels)
+
+			else:
+				predictions = model(sub_inputs)
+				loss = loss_f(predictions, sub_labels)
+		if j % 1000:
+			break
+
 		gradients  = tape.gradient(loss, model.trainable_variables)
 		optmizer.apply_gradients(zip(gradients, model.trainable_variables))
 	return None
@@ -44,7 +50,7 @@ def train(model, train_inputs, train_labels):
 def loss_f(predictions, labels):
 	return tf.reduce_sum(tf.keras.losses.mean_squared_error(predictions,labels))
 
-def test(model, test_inputs, test_labels):
+def test(model, test_inputs, test_labels, is_kalman):
 	"""
 	Runs through one epoch - all testing examples.
 
@@ -57,13 +63,20 @@ def test(model, test_inputs, test_labels):
 	accuracy = 0
 	total_pred = 0
 
-	for j in range(math.ceil(int((len(test_inputs) / model.batch_size)))):
-		sub_inputs = np.array(test_inputs[j*model.batch_size: (j+1)*model.batch_size])
-		sub_labels = np.array(test_labels[j*model.batch_size: (j+1)*model.batch_size])
+	for j in range(math.ceil(int((len(test_inputs) / BATCH_SIZE)))):
+		inputs = np.array(test_inputs[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
+		if is_kalman:
+			inputs = np.array(test_inputs[(j*BATCH_SIZE) + 1: ((j+1)*BATCH_SIZE) + 1])
+			states = np.array(test_labels[j*BATCH_SIZE: (j+1)*BATCH_SIZE])
+		sub_labels = np.array(test_labels[j*BATCH_SIZE + 1: (j+1)*BATCH_SIZE + 1])
 
-		predictions = model(sub_inputs)
+		if is_kalman:
+			predictions = model(inputs, states)
+		else:
+			predictions = model(inputs)
 		total_pred += 1
-		loss = model.loss(predictions, sub_labels)
+
+		loss = loss_f(predictions, sub_labels)
 		accuracy += loss
 
 	return (accuracy/total_pred)
@@ -71,11 +84,24 @@ def test(model, test_inputs, test_labels):
 def main():
 
 	train_inputs, train_labels, test_inputs, test_labels = get_data('./../COS071212_mocap_processed.mat')
-	model = create_basicconv()
+	conv_model = create_conv()
+	gru_model = create_gru()
+	linear_model = Linear()
+	kalman_filter = Kalman()
 
 	for i in range(EPOCH_SIZE):
-		train(model, train_inputs, train_labels)
-	print(test(model, test_inputs, test_labels))
+		train(gru_model, train_inputs, train_labels, False)
+		print("GRU Model Loss:" + str(test(gru_model, test_inputs, test_labels, False)))
+		print("")
+		train(linear_model, train_inputs, train_labels, False)
+		print("Linear Model Loss:" + str(test(linear_model, test_inputs, test_labels, False)))
+		print("")
+		train(conv_model, train_inputs, train_labels, False)
+		print("Conv Model Loss:" + str(test(conv_model, test_inputs, test_labels, False)))
+		print("")
+		train(kalman_filter, train_inputs, train_labels, True)
+		print("Kalman Filter Loss:" + str(test(kalman_filter, test_inputs, test_labels, True)))
+		print("")
 
 
 if __name__ == '__main__':
